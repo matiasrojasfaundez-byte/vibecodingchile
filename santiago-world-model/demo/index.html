@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWM-SCL // Santiago World Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #030810;
+    --bg2: #070f1a;
+    --panel: #0a1525cc;
+    --border: #1a3a5c;
+    --green: #00ff88;
+    --cyan: #00d4ff;
+    --amber: #ff9500;
+    --red: #ff3b5c;
+    --text: #c8dff0;
+    --text2: #4a7a9b;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-display: 'Orbitron', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOPBAR */
+  #topbar {
+    height: 48px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+  }
+
+  #topbar .logo {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green);
+  }
+
+  #topbar .sep { color: var(--border); font-size: 20px; }
+
+  #topbar .subtitle {
+    font-size: 10px;
+    color: var(--text2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .status-tag {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    padding: 2px 8px;
+    border: 1px solid;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-tag.online { border-color: var(--green); color: var(--green); }
+  .status-tag.warn { border-color: var(--amber); color: var(--amber); }
+
+  #topbar .coords {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text2);
+    letter-spacing: 1px;
+  }
+
+  /* MAIN LAYOUT */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* LEFT PANEL */
+  #left-panel {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    backdrop-filter: blur(10px);
+  }
+
+  .panel-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+  }
+
+  .panel-title {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::before {
+    content: '';
+    display: block;
+    width: 3px;
+    height: 10px;
+    background: var(--cyan);
+    box-shadow: 0 0 6px var(--cyan);
+  }
+
+  /* Scenario buttons */
+  .scenario-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 6px;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scenario-btn:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: #00d4ff11;
+  }
+
+  .scenario-btn.active {
+    border-color: var(--green);
+    color: var(--green);
+    background: #00ff8811;
+  }
+
+  .scenario-btn .sc-name { font-weight: bold; display: block; margin-bottom: 3px; }
+  .scenario-btn .sc-meta { font-size: 9px; color: var(--text2); }
+  .scenario-btn.active .sc-meta { color: #00cc66; }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-box {
+    background: #0a1a2a;
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 3px;
+  }
+
+  .stat-label {
+    font-size: 8px;
+    color: var(--text2);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+    font-family: var(--font-display);
+    color: var(--cyan);
+  }
+
+  .stat-unit {
+    font-size: 9px;
+    color: var(--text2);
+    margin-left: 2px;
+  }
+
+  /* Config sliders */
+  .config-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .config-label {
+    font-size: 10px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .config-label span {
+    font-size: 8px;
+    color: var(--text2);
+    display: block;
+  }
+
+  .config-val {
+    font-size: 14px;
+    color: var(--green);
+    font-family: var(--font-display);
+    min-width: 30px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 80px;
+    height: 3px;
+    background: var(--border);
+    outline: none;
+    margin: 0 8px;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--cyan);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 10px;
+  }
+
+  .toggle-row span { color: var(--text2); font-size: 8px; }
+
+  .toggle {
+    position: relative;
+    width: 32px;
+    height: 16px;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    left: 3px;
+    top: 3px;
+    background: var(--text2);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: #00aa55; }
+  .toggle input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  /* GENERATE BUTTON */
+  #btn-generate {
+    margin: 14px;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    cursor: pointer;
+    border-radius: 3px;
+    text-transform: uppercase;
+    width: calc(100% - 28px);
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #btn-generate::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--green);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+
+  #btn-generate:hover::before { transform: scaleX(1); }
+  #btn-generate:hover { color: #000; }
+  #btn-generate span { position: relative; z-index: 1; }
+
+  #btn-generate.running {
+    border-color: var(--amber);
+    color: var(--amber);
+    animation: blink-border 0.5s ease infinite;
+  }
+
+  @keyframes blink-border {
+    0%, 100% { border-color: var(--amber); box-shadow: 0 0 10px #ff950033; }
+    50% { border-color: #ff950066; box-shadow: none; }
+  }
+
+  /* MAP */
+  #map {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .leaflet-container { background: #010508 !important; }
+
+  /* RIGHT PANEL */
+  #right-panel {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+  }
+
+  /* Reference cards */
+  .ref-card {
+    background: #0a1a2a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+    opacity: 0.4;
+  }
+
+  .ref-card.active { 
+    opacity: 1;
+    border-color: var(--amber);
+    box-shadow: 0 0 15px #ff950022;
+  }
+
+  .ref-card.vl-sink {
+    border-color: var(--cyan);
+    box-shadow: 0 0 15px #00d4ff22;
+  }
+
+  .ref-img {
+    width: 100%;
+    height: 90px;
+    background: #0c1f30;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ref-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* Synthetic street view illustration */
+  .street-view-art {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ref-meta {
+    padding: 8px 10px;
+  }
+
+  .ref-tag {
+    display: inline-block;
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 1px 6px;
+    border-radius: 1px;
+    margin-bottom: 6px;
+  }
+
+  .ref-tag.geometric { background: #ff950022; color: var(--amber); border: 1px solid var(--amber); }
+  .ref-tag.semantic { background: #00d4ff11; color: var(--cyan); border: 1px solid var(--cyan); }
+  .ref-tag.vl { background: #aa00ff11; color: #cc66ff; border: 1px solid #cc66ff; }
+
+  .ref-data-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--text2);
+    margin-bottom: 3px;
+  }
+
+  .ref-data-row .val { color: var(--text); }
+
+  /* Pipeline status bar */
+  #pipeline-bar {
+    height: 42px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 0;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+
+  .pipe-stage {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    border-right: 1px solid var(--border);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text2);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .pipe-stage:last-child { border-right: none; }
+
+  .pipe-stage .pipe-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+
+  .pipe-stage.active {
+    color: var(--green);
+  }
+
+  .pipe-stage.active .pipe-dot {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 0.5s ease infinite;
+  }
+
+  .pipe-stage.done { color: #00aa55; }
+  .pipe-stage.done .pipe-dot { background: #00aa55; }
+
+  .pipe-arrow {
+    color: var(--border);
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  /* Log area */
+  #log-area {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--text2);
+    letter-spacing: 0.5px;
+    padding-left: 16px;
+    border-left: 1px solid var(--border);
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Map overlay elements */
+  .leaflet-popup-content-wrapper {
+    background: #0a1525ee !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    color: var(--text) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    box-shadow: 0 4px 20px #00000088 !important;
+  }
+
+  .leaflet-popup-tip { background: #0a1525ee !important; }
+
+  /* Scan animation overlay */
+  #scan-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 500;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  #scan-overlay.active { opacity: 1; }
+
+  .scan-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scan 2s linear infinite;
+    box-shadow: 0 0 20px var(--green);
+  }
+
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+
+  /* Trajectory animation dot */
+  .traj-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 15px var(--green);
+    animation: pulse 1s ease infinite;
+  }
+
+  .waypoint-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--green);
+    background: var(--bg);
+    box-shadow: 0 0 10px var(--green);
+  }
+
+  .waypoint-icon.end {
+    border-color: var(--red);
+    box-shadow: 0 0 10px var(--red);
+  }
+
+  /* Custom map marker */
+  .custom-marker {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  /* RAG radius circle on map */
+  
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+  /* HOVER MODE INSTRUCTIONS */
+  #map-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    font-size: 10px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    border-radius: 3px;
+    z-index: 900;
+    pointer-events: none;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Progress bar */
+  #progress-container {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px var(--green);
+  }
+
+  /* Chunk counter */
+  #chunk-display {
+    font-family: var(--font-display);
+    font-size: 24px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green);
+    text-align: center;
+    padding: 6px 0 2px;
+  }
+
+  #chunk-label {
+    font-size: 8px;
+    color: var(--text2);
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .frames-bar {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    padding: 0 2px;
+    margin-bottom: 8px;
+  }
+
+  .frame-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 1px;
+    background: var(--border);
+    transition: background 0.15s;
+  }
+
+  .frame-dot.filled { background: var(--green); }
+  .frame-dot.current { background: var(--cyan); box-shadow: 0 0 4px var(--cyan); }
+
+  /* Retrieval distance badge */
+  .dist-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: var(--amber);
+    background: #ff950011;
+    border: 1px solid #ff950033;
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <span class="logo">SWM-SCL</span>
+  <span class="sep">//</span>
+  <span class="subtitle">Santiago World Model · VibeCodingChile</span>
+  <div style="display:flex;gap:10px;margin-left:16px">
+    <div class="status-tag online"><div class="status-dot"></div>MAPILLARY ONLINE</div>
+    <div class="status-tag warn"><div style="width:6px;height:6px;border-radius:50%;background:var(--amber);"></div>MODEL PENDING</div>
+  </div>
+  <span class="coords" id="cursor-coords">LAT — / LNG —</span>
+</div>
+
+<div id="progress-container"><div id="progress-bar"></div></div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="left-panel">
+
+    <div class="panel-section">
+      <div class="panel-title">Scenarios Precargados</div>
+
+      <button class="scenario-btn active" onclick="loadScenario(0)" id="sc0">
+        <span class="sc-name">▸ LA ALAMEDA</span>
+        <span class="sc-meta">Plaza Italia → U. de Chile · 1.8 km · 4 waypoints</span>
+      </button>
+
+      <button class="scenario-btn" onclick="loadScenario(1)" id="sc1">
+        <span class="sc-name">▸ BARRIO REPÚBLICA</span>
+        <span class="sc-meta">Club Hípico → Domeyko · 0.6 km · 3 waypoints</span>
+      </button>
+
+      <button class="scenario-btn" onclick="loadScenario(2)" id="sc2">
+        <span class="sc-name">▸ PROVIDENCIA</span>
+        <span class="sc-meta">Costanera Center → Andrés Bello · 1.2 km · 3 waypoints</span>
+      </button>
+
+      <div style="font-size:9px;color:var(--text2);margin-top:8px;line-height:1.6">
+        + Click en el mapa para agregar waypoints custom
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Trajectory Stats</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">Distancia</div>
+          <div class="stat-value" id="stat-dist">1.8<span class="stat-unit">km</span></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Waypoints</div>
+          <div class="stat-value" id="stat-wp">4</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Frames est.</div>
+          <div class="stat-value" id="stat-frames">~540</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Chunks</div>
+          <div class="stat-value" id="stat-chunks">7</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Chunk Progress</div>
+      <div id="chunk-display">—</div>
+      <div id="chunk-label">CHUNKS GENERADOS</div>
+      <div class="frames-bar" id="frames-bar">
+        <!-- filled dynamically -->
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Model Config</div>
+
+      <div class="config-row">
+        <div class="config-label">K References<span>imgs por chunk</span></div>
+        <input type="range" min="1" max="5" value="3" id="cfg-k" oninput="updateK(this.value)">
+        <span class="config-val" id="val-k">3</span>
+      </div>
+
+      <div class="config-row">
+        <div class="config-label">Δ VL Sink<span>offset temporal</span></div>
+        <input type="range" min="1" max="10" value="5" id="cfg-vl" oninput="updateVL(this.value)">
+        <span class="config-val" id="val-vl">5</span>
+      </div>
+
+      <div class="toggle-row">
+        <div class="config-label">Virtual Lookahead Sink<span>anti-drift en long-horizon</span></div>
+        <label class="toggle">
+          <input type="checkbox" id="tog-vl" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="config-label">Cross-Temporal Pairing<span>ignora objetos dinámicos</span></div>
+        <label class="toggle">
+          <input type="checkbox" id="tog-ct" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="config-label">Geometric Referencing<span>depth-based splatting</span></div>
+        <label class="toggle">
+          <input type="checkbox" id="tog-geo" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="config-label">Semantic Referencing<span>appearance injection</span></div>
+        <label class="toggle">
+          <input type="checkbox" id="tog-sem" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <button id="btn-generate" onclick="runGeneration()">
+      <span id="btn-text">▶ GENERATE</span>
+    </button>
+
+    <div class="panel-section" style="border-top:1px solid var(--border);margin-top:auto">
+      <div class="panel-title">Data Source</div>
+      <div style="font-size:9px;color:var(--text2);line-height:1.8">
+        <div>📡 Mapillary API v4</div>
+        <div>🗺️ Cobertura: Santiago RM</div>
+        <div>📍 ~2.3M imágenes disponibles</div>
+        <div>🔑 Token: <span style="color:var(--amber)">REQUIRED</span></div>
+        <div style="margin-top:8px;color:var(--text2)">ver <span style="color:var(--cyan)">README.md</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="flex:1;position:relative;">
+    <div id="map"></div>
+    <div id="scan-overlay"><div class="scan-line"></div></div>
+    <div id="map-hint">CLICK para agregar waypoint · SCENARIO para rutas predefinidas</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+
+    <div class="panel-section">
+      <div class="panel-title">Retrieved References</div>
+
+      <!-- Ref cards 1-3 -->
+      <div class="ref-card" id="ref0">
+        <div class="ref-img">
+          <canvas id="canvas0" width="252" height="90"></canvas>
+        </div>
+        <div class="ref-meta">
+          <span class="ref-tag geometric">GEOMETRIC</span>
+          <div class="ref-data-row"><span>LAT</span><span class="val" id="r0-lat">—</span></div>
+          <div class="ref-data-row"><span>LNG</span><span class="val" id="r0-lng">—</span></div>
+          <div class="ref-data-row"><span>HEADING</span><span class="val" id="r0-hdg">—°</span></div>
+          <div class="ref-data-row"><span>ΔDIST</span><span class="val" id="r0-dist">—m</span></div>
+          <div class="ref-data-row"><span>CAPTURED</span><span class="val" id="r0-ts">—</span></div>
+        </div>
+      </div>
+
+      <div class="ref-card" id="ref1">
+        <div class="ref-img">
+          <canvas id="canvas1" width="252" height="90"></canvas>
+        </div>
+        <div class="ref-meta">
+          <span class="ref-tag semantic">SEMANTIC</span>
+          <div class="ref-data-row"><span>LAT</span><span class="val" id="r1-lat">—</span></div>
+          <div class="ref-data-row"><span>LNG</span><span class="val" id="r1-lng">—</span></div>
+          <div class="ref-data-row"><span>HEADING</span><span class="val" id="r1-hdg">—°</span></div>
+          <div class="ref-data-row"><span>ΔDIST</span><span class="val" id="r1-dist">—m</span></div>
+          <div class="ref-data-row"><span>CAPTURED</span><span class="val" id="r1-ts">—</span></div>
+        </div>
+      </div>
+
+      <div class="ref-card" id="ref2">
+        <div class="ref-img">
+          <canvas id="canvas2" width="252" height="90"></canvas>
+        </div>
+        <div class="ref-meta">
+          <span class="ref-tag vl">VL SINK</span>
+          <div class="ref-data-row"><span>LAT</span><span class="val" id="r2-lat">—</span></div>
+          <div class="ref-data-row"><span>LNG</span><span class="val" id="r2-lng">—</span></div>
+          <div class="ref-data-row"><span>HEADING</span><span class="val" id="r2-hdg">—°</span></div>
+          <div class="ref-data-row"><span>ΔDIST</span><span class="val" id="r2-dist">—m</span></div>
+          <div class="ref-data-row"><span>CAPTURED</span><span class="val" id="r2-ts">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Generation Log</div>
+      <div id="gen-log" style="font-size:9px;color:var(--text2);line-height:2;height:120px;overflow-y:auto;">
+        <div style="color:var(--text2)">» Selecciona un scenario y presiona GENERATE</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Metrics (est.)</div>
+      <div class="ref-data-row"><span>FID ↓</span><span class="val" id="m-fid">—</span></div>
+      <div class="ref-data-row"><span>FVD ↓</span><span class="val" id="m-fvd">—</span></div>
+      <div class="ref-data-row"><span>RotErr ↓</span><span class="val" id="m-rot">—</span></div>
+      <div class="ref-data-row"><span>TransErr ↓</span><span class="val" id="m-trans">—</span></div>
+      <div class="ref-data-row"><span>mPSNR ↑</span><span class="val" id="m-psnr">—</span></div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- PIPELINE BAR -->
+<div id="pipeline-bar">
+  <div class="pipe-stage" id="ps0">
+    <div class="pipe-dot"></div>GPS LOOKUP
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps1">
+    <div class="pipe-dot"></div>RETRIEVE
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps2">
+    <div class="pipe-dot"></div>DEPTH EST.
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps3">
+    <div class="pipe-dot"></div>GEO REF
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps4">
+    <div class="pipe-dot"></div>SEM REF
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps5">
+    <div class="pipe-dot"></div>VL SINK
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps6">
+    <div class="pipe-dot"></div>DiT DENOISE
+  </div>
+  <span class="pipe-arrow">→</span>
+  <div class="pipe-stage" id="ps7">
+    <div class="pipe-dot"></div>DECODE
+  </div>
+  <div id="log-area">IDLE · awaiting trajectory</div>
+</div>
+
+<script>
+// ===== SCENARIOS =====
+const SCENARIOS = [
+  {
+    name: "La Alameda",
+    dist: "1.8",
+    waypoints: [
+      {lat: -33.4372, lng: -70.6506, name: "Plaza Italia"},
+      {lat: -33.4407, lng: -70.6540, name: "Av. Bustamante"},
+      {lat: -33.4451, lng: -70.6585, name: "Baquedano"},
+      {lat: -33.4513, lng: -70.6653, name: "U. de Chile"},
+    ]
+  },
+  {
+    name: "Barrio República",
+    dist: "0.6",
+    waypoints: [
+      {lat: -33.4510, lng: -70.6630, name: "Club Hípico"},
+      {lat: -33.4535, lng: -70.6651, name: "Av. España"},
+      {lat: -33.4561, lng: -70.6669, name: "Domeyko"},
+    ]
+  },
+  {
+    name: "Providencia",
+    dist: "1.2",
+    waypoints: [
+      {lat: -33.4245, lng: -70.6050, name: "Costanera Center"},
+      {lat: -33.4265, lng: -70.6125, name: "Pedro de Valdivia"},
+      {lat: -33.4310, lng: -70.6300, name: "Av. Andrés Bello"},
+    ]
+  }
+];
+
+// Simulated Mapillary-style data per scenario
+const FAKE_REFS = [
+  [ // Alameda
+    {lat:-33.4370, lng:-70.6502, hdg:271, dist:45, ts:"2023-08-14"},
+    {lat:-33.4374, lng:-70.6511, hdg:265, dist:28, ts:"2022-11-03"},
+    {lat:-33.4381, lng:-70.6522, hdg:280, dist:67, ts:"2024-01-20"},
+  ],
+  [ // República
+    {lat:-33.4508, lng:-70.6628, hdg:188, dist:22, ts:"2023-05-17"},
+    {lat:-33.4515, lng:-70.6635, hdg:192, dist:35, ts:"2022-09-08"},
+    {lat:-33.4522, lng:-70.6642, hdg:185, dist:58, ts:"2024-03-02"},
+  ],
+  [ // Providencia
+    {lat:-33.4243, lng:-70.6048, hdg:092, dist:31, ts:"2023-12-09"},
+    {lat:-33.4248, lng:-70.6070, hdg:088, dist:19, ts:"2022-07-22"},
+    {lat:-33.4260, lng:-70.6090, hdg:095, dist:43, ts:"2024-02-14"},
+  ]
+];
+
+// ===== MAP INIT =====
+const map = L.map('map', {
+  zoomControl: false,
+  attributionControl: false
+}).setView([-33.4513, -70.6653], 15);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+L.control.attribution({
+  prefix: '<span style="color:#2a4a6a;font-size:8px">© OSM · © CARTO · SWM-SCL Demo</span>'
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// Track cursor
+map.on('mousemove', e => {
+  document.getElementById('cursor-coords').textContent =
+    `LAT ${e.latlng.lat.toFixed(5)} / LNG ${e.latlng.lng.toFixed(5)}`;
+});
+
+// Custom waypoint on click
+map.on('click', e => {
+  if (isRunning) return;
+  addCustomWaypoint(e.latlng.lat, e.latlng.lng);
+});
+
+// ===== STATE =====
+let currentScenario = 0;
+let markers = [];
+let polyline = null;
+let ragCircle = null;
+let animMarker = null;
+let customWaypoints = [];
+let isRunning = false;
+
+const waypointIcon = L.divIcon({
+  html: '<div class="waypoint-icon"></div>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+  className: ''
+});
+
+const endIcon = L.divIcon({
+  html: '<div class="waypoint-icon end"></div>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+  className: ''
+});
+
+const animIcon = L.divIcon({
+  html: '<div class="traj-dot"></div>',
+  iconSize: [10, 10],
+  iconAnchor: [5, 5],
+  className: ''
+});
+
+function clearMap() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  if (polyline) { map.removeLayer(polyline); polyline = null; }
+  if (ragCircle) { map.removeLayer(ragCircle); ragCircle = null; }
+  if (animMarker) { map.removeLayer(animMarker); animMarker = null; }
+}
+
+function loadScenario(idx) {
+  currentScenario = idx;
+  customWaypoints = [];
+  [0,1,2].forEach(i => {
+    document.getElementById('sc'+i).classList.remove('active');
+  });
+  document.getElementById('sc'+idx).classList.add('active');
+
+  const sc = SCENARIOS[idx];
+  clearMap();
+  drawTrajectory(sc.waypoints);
+  updateStats(sc);
+  resetRefs();
+  resetPipeline();
+  updateLog('Scenario cargado: ' + sc.name);
+
+  // Fit map
+  const bounds = sc.waypoints.map(w => [w.lat, w.lng]);
+  map.fitBounds(bounds, { padding: [60, 60] });
+}
+
+function drawTrajectory(waypoints) {
+  const latlngs = waypoints.map(w => [w.lat, w.lng]);
+
+  polyline = L.polyline(latlngs, {
+    color: '#00ff88',
+    weight: 2,
+    opacity: 0.8,
+    dashArray: '6,4'
+  }).addTo(map);
+
+  waypoints.forEach((wp, i) => {
+    const icon = i === waypoints.length - 1 ? endIcon : waypointIcon;
+    const m = L.marker([wp.lat, wp.lng], { icon })
+      .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(5)}, ${wp.lng.toFixed(5)}`)
+      .addTo(map);
+    markers.push(m);
+  });
+}
+
+function addCustomWaypoint(lat, lng) {
+  customWaypoints.push({lat, lng, name: `WP${customWaypoints.length+1}`});
+  // merge with scenario
+  const sc = SCENARIOS[currentScenario];
+  const merged = [...sc.waypoints, ...customWaypoints];
+  clearMap();
+  drawTrajectory(merged);
+
+  // estimate new distance
+  let d = 0;
+  for (let i = 1; i < merged.length; i++) {
+    d += haversine(merged[i-1].lat, merged[i-1].lng, merged[i].lat, merged[i].lng);
+  }
+  document.getElementById('stat-dist').innerHTML = d.toFixed(1) + '<span class="stat-unit">km</span>';
+  document.getElementById('stat-wp').textContent = merged.length;
+
+  updateLog(`Waypoint custom añadido: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateStats(sc) {
+  document.getElementById('stat-dist').innerHTML = sc.dist + '<span class="stat-unit">km</span>';
+  document.getElementById('stat-wp').textContent = sc.waypoints.length;
+  const frames = Math.round(parseFloat(sc.dist) * 300);
+  const chunks = Math.ceil(frames / 77);
+  document.getElementById('stat-frames').textContent = '~'+frames;
+  document.getElementById('stat-chunks').textContent = chunks;
+
+  // Init frames bar
+  const bar = document.getElementById('frames-bar');
+  bar.innerHTML = '';
+  for (let i = 0; i < chunks; i++) {
+    const d = document.createElement('div');
+    d.className = 'frame-dot';
+    d.id = 'fd'+i;
+    bar.appendChild(d);
+  }
+}
+
+function resetRefs() {
+  [0,1,2].forEach(i => {
+    document.getElementById('ref'+i).classList.remove('active', 'vl-sink');
+    document.getElementById('r'+i+'-lat').textContent = '—';
+    document.getElementById('r'+i+'-lng').textContent = '—';
+    document.getElementById('r'+i+'-hdg').textContent = '—°';
+    document.getElementById('r'+i+'-dist').textContent = '—m';
+    document.getElementById('r'+i+'-ts').textContent = '—';
+    clearCanvas(i);
+  });
+}
+
+function resetPipeline() {
+  for (let i = 0; i < 8; i++) {
+    const el = document.getElementById('ps'+i);
+    el.classList.remove('active', 'done');
+  }
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('chunk-display').textContent = '—';
+  document.getElementById('log-area').textContent = 'IDLE · awaiting trajectory';
+}
+
+// ===== CANVAS: synthetic street-view art =====
+function drawStreetView(canvasId, seed, active) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  // Simple synthetic cityscape
+  const rng = (s) => {
+    let x = Math.sin(s*9301 + 49297) * 0.5 + 0.5;
+    return x;
+  };
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (!active) {
+    ctx.fillStyle = '#0a1525';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#1a3a5c44';
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('AWAITING RETRIEVAL', w/2, h/2);
+    return;
+  }
+
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, h*0.55);
+  sky.addColorStop(0, '#050e1a');
+  sky.addColorStop(1, '#0a1e30');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h*0.55);
+
+  // Road
+  ctx.fillStyle = '#0d1822';
+  ctx.fillRect(0, h*0.55, w, h*0.45);
+
+  // Road lines
+  ctx.strokeStyle = '#2a4a3a';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(w*0.5, h*0.55);
+  ctx.lineTo(w*0.5, h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Buildings
+  const numBuildings = 6 + Math.floor(rng(seed) * 4);
+  for (let i = 0; i < numBuildings; i++) {
+    const bx = (i / numBuildings) * w + rng(seed+i*7) * 10;
+    const bw = 20 + rng(seed+i) * 30;
+    const bh = 20 + rng(seed+i*3) * (h*0.35);
+    const by = h*0.55 - bh;
+
+    const brightness = 15 + Math.floor(rng(seed+i*5) * 20);
+    ctx.fillStyle = `rgb(${brightness}, ${brightness+5}, ${brightness+15})`;
+    ctx.fillRect(bx, by, bw, bh);
+
+    // windows
+    const wrows = Math.floor(bh/10);
+    const wcols = Math.floor(bw/8);
+    for (let r = 0; r < wrows; r++) {
+      for (let c = 0; c < wcols; c++) {
+        if (rng(seed+i*r*c+r+c) > 0.5) {
+          ctx.fillStyle = rng(seed+i+r+c) > 0.7 ? '#ffcc0044' : '#2a4a6a33';
+          ctx.fillRect(bx + c*8 + 2, by + r*10 + 2, 4, 5);
+        }
+      }
+    }
+  }
+
+  // Street lights
+  for (let i = 0; i < 3; i++) {
+    const lx = w * (0.2 + i * 0.3);
+    ctx.strokeStyle = '#1a3a5c';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(lx, h*0.55);
+    ctx.lineTo(lx, h*0.3);
+    ctx.lineTo(lx + 8, h*0.28);
+    ctx.stroke();
+    ctx.fillStyle = '#ffcc0022';
+    ctx.beginPath();
+    ctx.arc(lx + 8, h*0.28, 3, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Scan overlay on active
+  const scanGrad = ctx.createLinearGradient(0, 0, 0, h);
+  scanGrad.addColorStop(0, '#00ff8800');
+  scanGrad.addColorStop(0.5, '#00ff8811');
+  scanGrad.addColorStop(1, '#00ff8800');
+  ctx.fillStyle = scanGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Corner decorations
+  ctx.strokeStyle = '#00ff8844';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 8); ctx.lineTo(0, 0); ctx.lineTo(8, 0);
+  ctx.moveTo(w-8, 0); ctx.lineTo(w, 0); ctx.lineTo(w, 8);
+  ctx.moveTo(0, h-8); ctx.lineTo(0, h); ctx.lineTo(8, h);
+  ctx.moveTo(w-8, h); ctx.lineTo(w, h); ctx.lineTo(w, h-8);
+  ctx.stroke();
+}
+
+function clearCanvas(i) {
+  drawStreetView('canvas'+i, i*37, false);
+}
+
+// ===== GENERATION SIMULATION =====
+let genInterval = null;
+
+function updateK(v) { document.getElementById('val-k').textContent = v; }
+function updateVL(v) { document.getElementById('val-vl').textContent = v; }
+
+function updateLog(msg) {
+  const log = document.getElementById('gen-log');
+  const line = document.createElement('div');
+  const ts = new Date().toLocaleTimeString('es-CL', {hour12:false});
+  line.innerHTML = `<span style="color:var(--text2)">[${ts}]</span> ${msg}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  document.getElementById('log-area').textContent = msg;
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function activatePipelineStage(idx) {
+  // Done previous
+  for (let i = 0; i < idx; i++) {
+    document.getElementById('ps'+i).classList.remove('active');
+    document.getElementById('ps'+i).classList.add('done');
+  }
+  document.getElementById('ps'+idx).classList.add('active');
+  document.getElementById('progress-bar').style.width = `${(idx/7)*100}%`;
+}
+
+async function runGeneration() {
+  if (isRunning) return;
+  isRunning = true;
+
+  const btn = document.getElementById('btn-generate');
+  btn.classList.add('running');
+  document.getElementById('btn-text').textContent = '⏸ RUNNING...';
+
+  const sc = SCENARIOS[currentScenario];
+  const refs = FAKE_REFS[currentScenario];
+  const chunks = parseInt(document.getElementById('stat-chunks').textContent);
+
+  // Clear previous
+  resetRefs();
+  resetPipeline();
+  document.getElementById('gen-log').innerHTML = '';
+
+  // Scan overlay
+  document.getElementById('scan-overlay').classList.add('active');
+
+  // Add RAG circle on map
+  if (ragCircle) map.removeLayer(ragCircle);
+  ragCircle = L.circle([sc.waypoints[0].lat, sc.waypoints[0].lng], {
+    radius: 150,
+    color: '#ff9500',
+    fillColor: '#ff950011',
+    fillOpacity: 0.2,
+    weight: 1,
+    dashArray: '4,4'
+  }).addTo(map);
+
+  // Animated dot
+  if (animMarker) map.removeLayer(animMarker);
+  animMarker = L.marker([sc.waypoints[0].lat, sc.waypoints[0].lng], {
+    icon: animIcon
+  }).addTo(map);
+
+  // PIPELINE STAGES
+  const stages = [
+    { label: 'GPS_LOOKUP', msg: `Localizando punto inicial: ${sc.waypoints[0].lat.toFixed(5)}, ${sc.waypoints[0].lng.toFixed(5)}` },
+    { label: 'RETRIEVE', msg: `Recuperando ${document.getElementById('val-k').textContent} referencias Mapillary en radio 150m` },
+    { label: 'DEPTH_EST', msg: 'Estimando depth maps (Depth Anything V3)...' },
+    { label: 'GEO_REF', msg: 'Geometric referencing: depth-based forward splatting' },
+    { label: 'SEM_REF', msg: 'Semantic referencing: inyectando latentes en DiT transformer' },
+    { label: 'VL_SINK', msg: `Virtual Lookahead Sink (Δ=${document.getElementById('val-vl').textContent}): anclando futuro` },
+    { label: 'DiT_DENOISE', msg: 'Diffusion Transformer: denoising chunk...' },
+    { label: 'DECODE', msg: '3D VAE decoder: reconstruyendo frames...' },
+  ];
+
+  for (let s = 0; s < stages.length; s++) {
+    await activatePipelineStage(s);
+    updateLog(stages[s].msg);
+    await sleep(600);
+
+    // On RETRIEVE: show refs
+    if (s === 1) {
+      refs.forEach((r, i) => {
+        document.getElementById('r'+i+'-lat').textContent = r.lat.toFixed(5);
+        document.getElementById('r'+i+'-lng').textContent = r.lng.toFixed(5);
+        document.getElementById('r'+i+'-hdg').textContent = r.hdg + '°';
+        document.getElementById('r'+i+'-dist').textContent = r.dist + 'm';
+        document.getElementById('r'+i+'-ts').textContent = r.ts;
+        document.getElementById('ref'+i).classList.add('active');
+        drawStreetView('canvas'+i, i * 73 + currentScenario * 17, true);
+      });
+      if (document.getElementById('tog-vl').checked) {
+        document.getElementById('ref2').classList.add('vl-sink');
+      }
+    }
+  }
+
+  // Done pipeline, now animate chunks
+  document.getElementById('progress-bar').style.width = '100%';
+  for (let i = 0; i < 8; i++) {
+    document.getElementById('ps'+i).classList.remove('active');
+    document.getElementById('ps'+i).classList.add('done');
+  }
+
+  // Animate through chunks
+  updateLog('Pipeline ready. Generando ' + chunks + ' chunks...');
+  document.getElementById('scan-overlay').classList.remove('active');
+
+  for (let c = 0; c < chunks; c++) {
+    document.getElementById('chunk-display').textContent = (c+1) + ' / ' + chunks;
+    document.getElementById('fd'+c) && (document.getElementById('fd'+c).className = 'frame-dot current');
+    if (c > 0) document.getElementById('fd'+(c-1)) && (document.getElementById('fd'+(c-1)).className = 'frame-dot filled');
+
+    // Move animated dot along trajectory
+    const wpIdx = Math.min(Math.floor(c / chunks * sc.waypoints.length), sc.waypoints.length - 1);
+    const wp = sc.waypoints[wpIdx];
+    const nextWp = sc.waypoints[Math.min(wpIdx+1, sc.waypoints.length-1)];
+    const frac = (c / chunks * sc.waypoints.length) % 1;
+    const lat = wp.lat + (nextWp.lat - wp.lat) * frac;
+    const lng = wp.lng + (nextWp.lng - wp.lng) * frac;
+    animMarker.setLatLng([lat, lng]);
+
+    // Move RAG circle
+    ragCircle.setLatLng([lat, lng]);
+
+    // Refresh canvas with new seed
+    drawStreetView('canvas0', c * 13 + currentScenario * 7, true);
+    drawStreetView('canvas1', c * 19 + currentScenario * 11, true);
+    drawStreetView('canvas2', c * 31 + currentScenario * 5, true);
+
+    if (c % 3 === 0) {
+      updateLog(`Chunk ${c+1}/${chunks} · lat ${lat.toFixed(4)} · VL_sink active`);
+    }
+
+    await sleep(350);
+  }
+
+  // Final
+  if (chunks > 0) document.getElementById('fd'+(chunks-1)).className = 'frame-dot filled';
+  document.getElementById('chunk-display').textContent = chunks + ' / ' + chunks;
+
+  // Show estimated metrics
+  document.getElementById('m-fid').textContent = (28 + Math.random()*5).toFixed(2);
+  document.getElementById('m-fvd').textContent = (300 + Math.random()*40).toFixed(1);
+  document.getElementById('m-rot').textContent = (0.018 + Math.random()*0.005).toFixed(3);
+  document.getElementById('m-trans').textContent = (0.014 + Math.random()*0.004).toFixed(3);
+  document.getElementById('m-psnr').textContent = (14.2 + Math.random()*0.8).toFixed(2);
+
+  updateLog(`✓ Generación completa · ${chunks} chunks · ${chunks*77} frames aprox.`);
+  updateLog('⚠ Demo: modelo real requiere fine-tune Cosmos-2B sobre datos Santiago');
+
+  btn.classList.remove('running');
+  document.getElementById('btn-text').textContent = '▶ GENERATE';
+  isRunning = false;
+}
+
+// ===== INIT =====
+// Draw initial canvases
+[0,1,2].forEach(i => clearCanvas(i));
+loadScenario(0);
+
+// Init frames bar
+updateStats(SCENARIOS[0]);
+</script>
+</body>
+</html>

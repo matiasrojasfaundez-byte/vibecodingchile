@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../data_pipeline"
+		},
+		{
+			"path": "../demo"
+		},
+		{
+			"path": "../model"
+		},
+		{
+			"path": "../scripts"
+		}
+	]
+}

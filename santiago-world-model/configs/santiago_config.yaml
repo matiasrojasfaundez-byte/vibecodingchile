@@ -1,0 +1,221 @@
+# configs/santiago_config.yaml
+# ================================
+# Configuración del Santiago World Model
+# Adaptada del Seoul World Model (NAVER AI Lab / KAIST)
+# VibeCodingChile — 2025
+
+# ─── Data Sources ──────────────────────────────────────────────────────────
+
+data:
+  # Mapillary API
+  mapillary:
+    token: ${MAPILLARY_TOKEN}   # export MAPILLARY_TOKEN=...
+    regions:
+      - santiago_centro
+      - providencia
+      - nunoa
+      - barrio_republica
+      - las_condes
+    max_images_per_region: 50000
+    resolution: "1024"
+    pano_only: false
+    min_captured: "2020-01-01"  # filtrar imágenes post-2020
+
+  # Directorios
+  raw_dir: ./data/mapillary
+  processed_dir: ./data/processed
+  geo_index_path: ./data/geo_index.pkl
+  training_pairs_dir: ./data/training_pairs
+
+  # Datos sintéticos (CARLA / opcional)
+  synthetic:
+    enabled: false
+    simulator: carla             # carla | sumo | vissim
+    maps: []                     # lista de mapas CARLA
+    synthetic_dir: ./data/synthetic
+
+  # Dataset de conducción adicional (tipo Waymo Open)
+  driving_video:
+    enabled: false
+    dataset_dir: ./data/driving_video
+    mix_ratio: 0.20              # 20% Waymo, 40% street-view, 40% synthetic
+
+# ─── Data Pipeline ─────────────────────────────────────────────────────────
+
+pipeline:
+  cross_temporal_pairing:
+    min_gap_days: 30             # mínimo 1 mes de diferencia
+    max_gap_days: 730            # máximo 2 años
+    k_references: 5              # referencias por chunk
+    retrieval_radius_m: 150      # radio de búsqueda en metros
+
+  view_interpolation:
+    enabled: true
+    vae_temporal_stride: 4       # stride del 3D VAE
+    target_fps: 24
+    capture_interval_m: 10       # distancia entre keyframes de street-view
+
+  sequence:
+    length: 10                   # keyframes por secuencia de entrenamiento
+    yaw_jitter_deg: 90           # rotación random del heading ±90°
+
+  depth_estimation:
+    model: depth_anything_v3     # depth_anything_v3 | midas | dpt
+    metric_alignment: gps        # usar GPS para escala métrica
+
+  caption_generation:
+    model: Qwen/Qwen2.5-VL-7B-Instruct  # o 72B si hay recursos
+    max_long_caption_words: 280
+    max_short_caption_words: 30
+    include_camera_action: true  # prepend acción de cámara al caption
+
+# ─── Model ─────────────────────────────────────────────────────────────────
+
+model:
+  base_model: cosmos-predict2-5-2b  # modelo base (Cosmos-Predict2.5-2B)
+  variant: i2w                       # image-to-world
+
+  # Configuración del DiT
+  dit:
+    blocks: 28
+    attention_heads: 16
+    hidden_dim: 2048
+    latent_channels: 16
+
+  # 3D VAE
+  vae:
+    temporal_compression: 4          # compresión temporal
+    spatial_compression: 8           # compresión espacial
+    latent_channels: 16
+
+  # Retrieval-Augmented Generation
+  rag:
+    k_references: 5                  # referencias por chunk
+    geometric_referencing: true      # depth-based splatting
+    semantic_referencing: true       # token injection al DiT
+
+  # Virtual Lookahead Sink
+  vl_sink:
+    enabled: true
+    delta_vl: 5                      # offset de posición RoPE
+    max_dist_m: 100                  # radio de búsqueda del sink
+
+  # Camera encoding
+  camera:
+    encoding: plucker                # plucker | rotation6d | quaternion
+    coordinate_system: rdf           # Right-Down-Forward
+
+# ─── Training ──────────────────────────────────────────────────────────────
+
+training:
+  # Teacher Forcing (TF)
+  teacher_forcing:
+    enabled: true
+    chunk_frames: 77                 # T: frames por chunk
+    history_latents: 5               # H: latentes de historia
+    noise_injection_prob: 0.5        # noise en conditioning history
+    noise_std: 0.1
+    iterations: 10000
+    batch_size: 48
+    learning_rate: 4.8e-5
+    optimizer: adamw
+    gpus: 24                         # 24x H100 en paper original
+
+  # Self Forcing (SF) — para inference en tiempo real
+  self_forcing:
+    enabled: false
+    ode_init_iterations: 6000
+    finetune_iterations: 10000
+    chunk_frames: 12                 # chunks cortos para velocidad
+    history_latents: 3
+    k_references: 1
+    target_fps: 15.2
+
+  # Dropout para CFG (Classifier-Free Guidance)
+  dropout:
+    text_caption_prob: 0.20
+    reference_prob: 0.20
+    warped_video_prob: 0.20
+
+  # Dataset mixing
+  dataset_mix:
+    street_view: 0.40
+    synthetic: 0.40
+    driving_video: 0.20
+
+  # Checkpoint
+  checkpoint:
+    save_every: 1000
+    output_dir: ./checkpoints/santiago_wm
+
+# ─── Inference ─────────────────────────────────────────────────────────────
+
+inference:
+  mode: teacher_forcing              # teacher_forcing | self_forcing
+  chunk_frames: 77
+  history_latents: 5
+  k_references: 5
+  vl_sink: true
+  delta_vl: 5
+
+  # Output
+  output_fps: 24
+  output_resolution: [512, 288]      # [W, H]
+  output_format: mp4                 # mp4 | frames
+
+  # Guidance
+  cfg_scale: 7.0
+  text_cfg_scale: 7.0
+
+# ─── Evaluation ────────────────────────────────────────────────────────────
+
+evaluation:
+  benchmarks:
+    - name: santiago_centro_bench
+      sequences: 30
+      frames_per_seq: 365
+      area: santiago_centro
+
+    - name: valparaiso_bench         # cross-city generalization
+      sequences: 30
+      frames_per_seq: 365
+      area: valparaiso               # unseen durante training
+
+  metrics:
+    - fid                            # visual fidelity
+    - fvd                            # temporal consistency
+    - rot_error                      # camera following accuracy
+    - trans_error
+    - masked_psnr                    # 3D adherence (regiones estáticas)
+    - masked_lpips
+
+# ─── Santiago-Specific ─────────────────────────────────────────────────────
+
+santiago:
+  # Rutas de referencia pre-cargadas en el demo
+  demo_routes:
+    - name: La Alameda
+      waypoints:
+        - {lat: -33.4372, lng: -70.6506, name: Plaza Italia}
+        - {lat: -33.4407, lng: -70.6540, name: Av. Bustamante}
+        - {lat: -33.4451, lng: -70.6585, name: Baquedano}
+        - {lat: -33.4513, lng: -70.6653, name: U. de Chile}
+
+    - name: Barrio República
+      waypoints:
+        - {lat: -33.4510, lng: -70.6630, name: Club Hípico}
+        - {lat: -33.4535, lng: -70.6651, name: Av. España}
+        - {lat: -33.4561, lng: -70.6669, name: Domeyko}
+
+    - name: Providencia
+      waypoints:
+        - {lat: -33.4245, lng: -70.6050, name: Costanera Center}
+        - {lat: -33.4265, lng: -70.6125, name: Pedro de Valdivia}
+        - {lat: -33.4310, lng: -70.6300, name: Av. Andrés Bello}
+
+  # Coverage area (Santiago RM)
+  bbox:
+    min_lng: -70.8500
+    min_lat: -33.6500
+    max_lng: -70.4500
+    max_lat: -33.3000

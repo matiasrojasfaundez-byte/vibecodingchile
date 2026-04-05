@@ -1,0 +1,43 @@
+# Santiago World Model — Requirements
+# VibeCodingChile 2025
+#
+# Core
+numpy>=1.24.0
+Pillow>=10.0.0
+requests>=2.31.0
+tqdm>=4.66.0
+pyyaml>=6.0.1
+
+# Geospatial
+scikit-learn>=1.3.0       # BallTree para geo-indexing
+
+# Deep Learning
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Depth Estimation (Depth Anything V3)
+transformers>=4.44.0
+huggingface_hub>=0.23.0
+
+# Video processing
+opencv-python>=4.8.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
+moviepy>=1.0.3
+
+# API + Web
+fastapi>=0.104.0          # para servir el demo
+uvicorn>=0.23.0
+python-dotenv>=1.0.0
+
+# Data
+pandas>=2.1.0
+pyarrow>=13.0.0
+
+# Visualization (opcional para análisis)
+matplotlib>=3.7.0
+folium>=0.14.0            # mapas interactivos Python
+
+# Dev / testing
+pytest>=7.4.0
+black>=23.0.0
